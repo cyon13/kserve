@@ -318,8 +318,8 @@ func (r *LLMISVCReconciler) expectedPrefillMultiNodeLWS(ctx context.Context, llm
 }
 
 func (r *LLMISVCReconciler) reconcileMultiNodeMainServiceAccount(ctx context.Context, llmSvc *v1alpha1.LLMInferenceService, config *Config) error {
-	// Determine whether an externally managed ServiceAccount is specified.
-	// The leader template takes precedence over the worker template.
+	// Determine whether an externally managed ServiceAccount is specified
+	// The leader template takes precedence over the worker template
 	var externalServiceAccountName string
 	if llmSvc.Spec.Template != nil && llmSvc.Spec.Template.ServiceAccountName != "" {
 		externalServiceAccountName = llmSvc.Spec.Template.ServiceAccountName
@@ -327,35 +327,24 @@ func (r *LLMISVCReconciler) reconcileMultiNodeMainServiceAccount(ctx context.Con
 		externalServiceAccountName = llmSvc.Spec.Worker.ServiceAccountName
 	}
 
-	// Get the expected ServiceAccount.
-	// If an external ServiceAccount is specified, this function is expected
-	// to fetch and return the existing ServiceAccount as-is.
 	serviceAccount, err := r.expectedMultiNodeMainServiceAccount(ctx, llmSvc)
 	if err != nil {
 		return fmt.Errorf("failed to create expected multi node service account: %w", err)
 	}
 
-	// If there is no worker, the controller normally deletes the ServiceAccount.
-	// However, externally managed ServiceAccounts must not be deleted.
 	if llmSvc.Spec.Worker == nil {
 		if externalServiceAccountName == "" {
 			return Delete(ctx, r, llmSvc, serviceAccount)
 		}
-		// Skip deletion for externally managed ServiceAccounts.
 		return nil
 	}
 
-	// Reconcile the ServiceAccount only if it is controller-managed.
-	// Externally managed ServiceAccounts must not be created or updated
-	// by this controller.
 	if externalServiceAccountName == "" {
 		if err := Reconcile(ctx, r, llmSvc, &corev1.ServiceAccount{}, serviceAccount, semanticServiceAccountIsEqual); err != nil {
 			return fmt.Errorf("failed to reconcile multi node service account %s/%s: %w", serviceAccount.GetNamespace(), serviceAccount.GetName(), err)
 		}
 	}
 
-	// Roles and RoleBindings can be safely managed by the controller,
-	// even when using an externally managed ServiceAccount.
 	if err := r.reconcileMultiNodeMainRole(ctx, llmSvc, config); err != nil {
 		return err
 	}
@@ -371,34 +360,23 @@ func (r *LLMISVCReconciler) reconcileMultiNodePrefillServiceAccount(ctx context.
 		externalServiceAccountName = llmSvc.Spec.Prefill.Worker.ServiceAccountName
 	}
 
-	// Get the expected ServiceAccount.
-	// If an external ServiceAccount is specified, this function is expected
-	// to fetch and return the existing ServiceAccount as-is.
 	serviceAccount, err := r.expectedMultiNodePrefillServiceAccount(ctx, llmSvc)
 	if err != nil {
 		return fmt.Errorf("failed to create expected multi node service account: %w", err)
 	}
 
-	// If there is no prefill worker, the controller normally deletes the ServiceAccount.
-	// However, externally managed ServiceAccounts must not be deleted.
 	if llmSvc.Spec.Prefill == nil || llmSvc.Spec.Prefill.Worker == nil {
 		if externalServiceAccountName == "" {
 			return Delete(ctx, r, llmSvc, serviceAccount)
 		}
-		// Skip deletion for externally managed ServiceAccounts.
 		return nil
 	}
 
-	// Reconcile the ServiceAccount only if it is controller-managed.
-	// Externally managed ServiceAccounts must not be created or updated
-	// by this controller.
 	if externalServiceAccountName == "" {
 		if err := Reconcile(ctx, r, llmSvc, &corev1.ServiceAccount{}, serviceAccount, semanticServiceAccountIsEqual); err != nil {
-			return fmt.Errorf("failed to reconcile multi node service account %s/%s: %w",
-				serviceAccount.GetNamespace(), serviceAccount.GetName(), err)
+			return fmt.Errorf("failed to reconcile multi node service account %s/%s: %w", serviceAccount.GetNamespace(), serviceAccount.GetName(), err)
 		}
 	}
-
 	return nil
 }
 
@@ -466,7 +444,7 @@ func (r *LLMISVCReconciler) expectedMultiNodeMainServiceAccount(ctx context.Cont
 
 	expectedServiceAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      kmeta.ChildName(llmSvc.GetName(), "-kserve-mn"),
+			Name:      kmeta.ChildName(llmSvc.GetName(), "-kserve-mn-prefill"),
 			Namespace: llmSvc.GetNamespace(),
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(llmSvc, v1alpha1.LLMInferenceServiceGVK),
@@ -493,21 +471,9 @@ func (r *LLMISVCReconciler) expectedMultiNodePrefillServiceAccount(ctx context.C
 	// If ServiceAccountName is provided, use it as-is (do not create/own a new ServiceAccount).
 	if existingServiceAccountName != "" {
 		existingServiceAccount := &corev1.ServiceAccount{}
-		err := r.Client.Get(
-			ctx,
-			types.NamespacedName{
-				Name:      existingServiceAccountName,
-				Namespace: llmSvc.Namespace,
-			},
-			existingServiceAccount,
-		)
+		err := r.Client.Get(ctx, types.NamespacedName{Name: existingServiceAccountName, Namespace: llmSvc.Namespace}, existingServiceAccount)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"failed to fetch existing multi node prefill service account %s/%s: %w",
-				llmSvc.Namespace,
-				existingServiceAccountName,
-				err,
-			)
+			return nil, fmt.Errorf("failed to fetch existing multi node prefill service account %s/%s: %w", llmSvc.Namespace, existingServiceAccountName, err)
 		}
 		return existingServiceAccount, nil
 	}
